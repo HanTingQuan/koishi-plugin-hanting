@@ -1,22 +1,24 @@
 {
   "name": "koishi-plugin-hanting",
-  "description": "",
   "version": "0.0.1",
-  "main": "lib/index.js",
+  "description": "",
   "typings": "lib/index.d.ts",
-  "files": [
-    "lib",
-    "dist"
-  ],
   "license": "MIT",
-  "scripts": {},
   "keywords": [
     "chatbot",
     "koishi",
     "plugin"
   ],
-  "devDependencies": {},
+  "main": "lib/index.js",
+  "files": [
+    "dist",
+    "lib"
+  ],
   "peerDependencies": {
-    "koishi": "^4.18.7"
+    "koishi": "^4.18.7",
+    "koishi-plugin-montmorill": "workspace:*"
+  },
+  "dependencies": {
+    "pinyin-pro": "^3.28.0"
   }
 }
