@@ -7,17 +7,18 @@ import { pinyin } from 'pinyin-pro'
 export const name = 'hanting'
 
 export interface Config {
+  unicode: boolean
   rubyStyle: 'tex' | 'html' | 'markdown'
   competitions: Record<string, string>
 }
 
 export const Config: Schema<Config> = Schema.object({
+  unicode: Schema.boolean().default(true).description('显示 Unicode 字符。'),
   rubyStyle: Schema.union([
     Schema.const('tex').description('TeX'),
     Schema.const('html').description('HTML'),
     Schema.const('markdown').description('Markdown'),
   ]).default('tex').description('拼音格式。'),
-  unicode: Schema.boolean().default(true).description('显示 Unicode 字符。'),
   competitions: Schema.dict(Schema.string()).default({
     A: '百知杯',
     B: '博物杯',
@@ -113,7 +114,7 @@ export async function apply(ctx: Context, config: Config) {
       if (!options?.answer)
         maskAnswer(hanting)
 
-      if (options.unicode ?? config) {
+      if (options.unicode ?? config.unicode) {
         for (const [key, value] of Object.entries(unicodeMap))
           hanting.pinyin = hanting.pinyin.replaceAll(key, value)
       }
