@@ -66,12 +66,12 @@ declare module 'koishi' {
 }
 
 const unicodeMap = {
-  "a": "ɑ",
-  "ɑ̄": "ɑ̄",
-  "á": "ɑ́",
-  "ǎ": "ɑ̌",
-  "à": "ɑ̀",
-  "g": "ɡ"
+  a: 'ɑ',
+  ɑ̄: 'ɑ̄',
+  á: 'ɑ́',
+  ǎ: 'ɑ̌',
+  à: 'ɑ̀',
+  g: 'ɡ',
 }
 
 export async function apply(ctx: Context, config: Config) {
@@ -113,7 +113,7 @@ export async function apply(ctx: Context, config: Config) {
       if (!options?.answer)
         maskAnswer(hanting)
 
-      if (options.unicode) {
+      if (options.unicode ?? config) {
         for (const [key, value] of Object.entries(unicodeMap))
           hanting.pinyin = hanting.pinyin.replaceAll(key, value)
       }
