@@ -17,6 +17,7 @@ export const Config: Schema<Config> = Schema.object({
     Schema.const('html').description('HTML'),
     Schema.const('markdown').description('Markdown'),
   ]).default('tex').description('拼音格式。'),
+  unicode: Schema.boolean().default(true).description('显示 Unicode 字符。'),
   competitions: Schema.dict(Schema.string()).default({
     A: '百知杯',
     B: '博物杯',
@@ -64,6 +65,15 @@ declare module 'koishi' {
   }
 }
 
+const unicodeMap = {
+  "a": "ɑ",
+  "ɑ̄": "ɑ̄",
+  "á": "ɑ́",
+  "ǎ": "ɑ̌",
+  "à": "ɑ̀",
+  "g": "ɡ"
+}
+
 export async function apply(ctx: Context, config: Config) {
   ctx.model.extend('hantings', {
     id: 'string',
@@ -84,6 +94,7 @@ export async function apply(ctx: Context, config: Config) {
     .option('level', '-l <level:number> 指定单词等级。')
     .option('competition', '-c <competition:string> 指定单词竞赛。')
     .option('ruby', '-r <ruby:string> 指定拼音格式。', { type: ['tex', 'html', 'markdown'] })
+    .option('unicode', '-u 显示 Unicode 字符。')
     .option('answer', '-a 显示答案。')
     .action(async ({ options, session }, id?: string) => {
       if (!session)
@@ -100,7 +111,12 @@ export async function apply(ctx: Context, config: Config) {
         return '未找到符合条件的单词！'
 
       if (!options?.answer)
-        filterHomophone(hanting)
+        maskAnswer(hanting)
+
+      if (options.unicode) {
+        for (const [key, value] of Object.entries(unicodeMap))
+          hanting.pinyin = hanting.pinyin.replaceAll(key, value)
+      }
 
       const level = ['⭐', '🍄', '🥚'][hanting.flag].repeat(4 - hanting.level)
 
@@ -142,14 +158,26 @@ function buildRuby({ word, pinyin }: Tables['hantings'], style: Config['rubyStyl
 
 const pinyinSeparator = /[- ]/
 
-function filterHomophone(hanting: Tables['hantings']): void {
+function maskAnswer(hanting: Tables['hantings']): void {
+  const replaceMap = new Map()
+  const words = hanting.word.split('/')
+  let index = 0
+  for (const pinyin of hanting.pinyin.split(pinyinSeparator)) {
+    for (const word of words)
+      replaceMap.set(word[index], pinyin)
+    index++
+  }
+
   const pinyinSet = new Set(hanting.pinyin.toLowerCase().split(pinyinSeparator))
-  const replaceHomophone = (sentence: string) =>
-    pinyin(sentence, { toneType: 'symbol', type: 'all' })
+  const maskText = (sentence: string) => {
+    for (const [char, pinyin] of replaceMap)
+      sentence = sentence.replaceAll(char, pinyin)
+    return pinyin(sentence, { toneType: 'symbol', type: 'all' })
       .map(item => pinyinSet.has(item.pinyin) ? ` ${item.pinyin} ` : item.origin)
       .join('')
       .replaceAll('  ', ' ')
+  }
 
-  hanting.definition = replaceHomophone(hanting.definition)
-  hanting.example && (hanting.example = replaceHomophone(hanting.example))
+  hanting.definition = maskText(hanting.definition)
+  hanting.example && (hanting.example = maskText(hanting.example))
 }
