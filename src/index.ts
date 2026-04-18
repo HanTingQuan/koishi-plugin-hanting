@@ -1,27 +1,35 @@
 import type { Context, Tables } from 'koishi'
+import type { VariantId } from './id'
 import { } from '@koishijs/plugin-help'
 import { $, h, Logger, Schema } from 'koishi'
 import { shortcut } from 'koishi-plugin-montmorill'
-import { pinyin } from 'pinyin-pro'
+import { buildVariantId, parseVariantId } from './id'
+import { maskAnswer } from './mask'
+import { makeRubyPairs, rubyBuilders } from './ruby'
+
+const rubyStyles = Object.keys(rubyBuilders) as (keyof typeof rubyBuilders)[]
 
 export const name = 'hanting'
 const logger = new Logger(name)
 
 export interface Config {
   dataUrl: string
-  unicode: boolean
-  rubyStyle: 'tex' | 'html' | 'markdown'
+  replaceMap: Record<string, string>
+  rubyStyle: keyof typeof rubyBuilders
   competitions: Record<string, string>
 }
 
 export const Config: Schema<Config> = Schema.object({
   dataUrl: Schema.string().description('汉听词库 URL。').default('https://raw.githubusercontent.com/HanTingQuan/HTDictionary/refs/heads/main/hanting.csv'),
-  unicode: Schema.boolean().default(true).description('显示 Unicode 字符。'),
-  rubyStyle: Schema.union([
-    Schema.const('tex').description('TeX'),
-    Schema.const('html').description('HTML'),
-    Schema.const('markdown').description('Markdown'),
-  ]).default('tex').description('拼音格式。'),
+  replaceMap: Schema.dict(Schema.string()).default({
+    a: 'ɑ',
+    ā: 'ɑ̄',
+    á: 'ɑ́',
+    ǎ: 'ɑ̌',
+    à: 'ɑ̀',
+    g: 'ɡ',
+  }).description('替换拼音中的字符。'),
+  rubyStyle: Schema.union(rubyStyles).default('plain').description('拼音格式。'),
   competitions: Schema.dict(Schema.string()).default({
     A: '百知杯',
     B: '博物杯',
@@ -70,15 +78,6 @@ declare module 'koishi' {
   }
 }
 
-const unicodeMap = {
-  a: 'ɑ',
-  ā: 'ɑ̄',
-  á: 'ɑ́',
-  ǎ: 'ɑ̌',
-  à: 'ɑ̀',
-  g: 'ɡ',
-}
-
 export async function apply(ctx: Context, config: Config) {
   ctx.model.extend('hanting', {
     id: 'unsigned',
@@ -100,8 +99,7 @@ export async function apply(ctx: Context, config: Config) {
     .option('level', '-l <level:number> 指定单词等级。')
     .option('competition', '-c <competition:string> 指定单词竞赛。')
     .option('variant', '-v <variant:number> 指定单词变体。', { hidden: true })
-    .option('ruby', '-r <ruby:string> 指定拼音格式。', { hidden: true, type: ['tex', 'html', 'markdown'] })
-    .option('unicode', '-u 显示 Unicode 字符。')
+    .option('ruby', '-r <ruby:string> 指定拼音格式。', { hidden: true, type: rubyStyles })
     .option('answer', '-a 显示答案。')
     .action(async ({ options, session }, id?: string) => {
       if (!session)
@@ -121,10 +119,8 @@ export async function apply(ctx: Context, config: Config) {
       if (!options?.answer)
         maskAnswer(hanting)
 
-      if (options.unicode ?? config.unicode) {
-        for (const [key, value] of Object.entries(unicodeMap))
-          hanting.pinyin = hanting.pinyin.replaceAll(key, value)
-      }
+      for (const [key, value] of Object.entries(config.replaceMap))
+        hanting.pinyin = hanting.pinyin.replaceAll(key, value)
 
       let variantId = buildVariantId(hanting.id, hanting.variant)
       const level = ['⭐', '🍄', '🥚'][hanting.flag].repeat(4 - hanting.level)
@@ -139,8 +135,7 @@ export async function apply(ctx: Context, config: Config) {
       return h('qq:markdown', [
         `${config.competitions[hanting.competition]}#${variantId}${level}`,
         options?.answer
-          ? session.platform === 'qq' ? buildRuby(hanting, options.ruby ?? config.rubyStyle)
-            : h('template', h('b', hanting.word), ` ${hanting.pinyin.replaceAll('-', ' ')}`)
+          ? rubyBuilders[config.rubyStyle](makeRubyPairs(hanting))
           : hanting.pinyin.replaceAll('-', ''),
         hanting.definition,
         hanting.example,
@@ -175,81 +170,4 @@ export async function apply(ctx: Context, config: Config) {
       logger.info(`汉听词库下载完成，共 ${buffer.length} 条记录。`)
     })
   }
-}
-
-type VariantId = `${number}${string}`
-
-function toBase26(n: number): string {
-  let result = ''
-  do {
-    const remainder = n % 26
-    result = String.fromCharCode('a'.charCodeAt(0) + remainder) + result
-    n = Math.floor(n / 26) - 1
-  } while (n >= 0)
-  return result
-}
-
-function fromBase26(s: string): number {
-  let result = 0
-  for (let i = 0; i < s.length; i++) {
-    result = result * 26 + (s.charCodeAt(i) - 'a'.charCodeAt(0)) + 1
-  }
-  return result - 1
-}
-
-function buildVariantId(id: number, variant: number): VariantId {
-  return `${id}${toBase26(variant)}`
-}
-
-function parseVariantId(value: VariantId): { id: number, variant?: number } {
-  const match = value.match(/^(\d+)([a-z]+)?$/)!
-  return {
-    id: Number.parseInt(match[1], 10),
-    ...match[2] ? { variant: fromBase26(match[2]) } : {},
-  }
-}
-
-function buildRuby({ word, pinyin }: Tables['hanting'], style: Config['rubyStyle']): string {
-  const pairs = []
-  let index = 0
-  for (const part of pinyin.split(' ')) {
-    const pinyins = part.split('-')
-    const chars = word.slice(index, index + pinyins.length)
-    pairs.push({ chars, pinyins: pinyins.join('') })
-    index += pinyins.length
-  }
-  switch (style) {
-    case 'tex':
-      return `$$${pairs.map(item => String.raw`\begin{array}{c}\mathrm{${item.pinyins}}\\${item.chars}\end{array}`).join('')}$$`
-    case 'html':
-      return pairs.map(item => `${item.chars}<rp>(</rp><rt>${item.pinyins}</rt><rp>)</rp>`).join('')
-    case 'markdown':
-      return pairs.map(item => ` {${item.chars}|${item.pinyins}} `).join(' ')
-  }
-}
-
-const pinyinSeparator = /[- ]/
-
-function maskAnswer(hanting: Tables['hanting']): void {
-  const replaceMap = new Map()
-  const words = hanting.word.split('/')
-  let index = 0
-  for (const pinyin of hanting.pinyin.split(pinyinSeparator)) {
-    for (const word of words)
-      replaceMap.set(word[index], pinyin)
-    index++
-  }
-
-  const pinyinSet = new Set(hanting.pinyin.toLowerCase().split(pinyinSeparator))
-  const maskText = (sentence: string) => {
-    for (const [char, pinyin] of replaceMap)
-      sentence = sentence.replaceAll(char, pinyin)
-    return pinyin(sentence, { toneType: 'symbol', type: 'all' })
-      .map(item => pinyinSet.has(item.pinyin) ? ` ${item.pinyin} ` : item.origin)
-      .join('')
-      .replaceAll('  ', ' ')
-  }
-
-  hanting.definition = maskText(hanting.definition)
-  hanting.example && (hanting.example = maskText(hanting.example))
 }
