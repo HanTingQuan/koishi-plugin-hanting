@@ -155,7 +155,7 @@ export async function apply(ctx: Context, config: Config) {
 
   const stats = await ctx.database.stats()
   if (!stats.tables.hanting?.count) {
-    logger.info('汉听词库为空，尝试下载...')
+    logger.info('汉听词库为空，下载中...')
     const parser = (await import('csv-parse')).parse({ columns: true })
     const buffer: Tables['hanting'][] = []
     parser.on('readable', () => {
