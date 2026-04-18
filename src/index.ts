@@ -1,4 +1,5 @@
 import type { Context, Tables } from 'koishi'
+import { assert } from 'node:console'
 import { } from '@koishijs/plugin-help'
 import { $, h, Logger, Schema } from 'koishi'
 import { shortcut } from 'koishi-plugin-montmorill'
@@ -8,14 +9,14 @@ export const name = 'hanting'
 const logger = new Logger(name)
 
 export interface Config {
-  url: string
+  dataUrl: string
   unicode: boolean
   rubyStyle: 'tex' | 'html' | 'markdown'
   competitions: Record<string, string>
 }
 
 export const Config: Schema<Config> = Schema.object({
-  url: Schema.string().description('汉听词库 URL。').default('https://raw.githubusercontent.com/HanTingQuan/HTDictionary/refs/heads/main/hantings.csv'),
+  dataUrl: Schema.string().description('汉听词库 URL。').default('https://raw.githubusercontent.com/HanTingQuan/HTDictionary/refs/heads/main/hantings.csv'),
   unicode: Schema.boolean().default(true).description('显示 Unicode 字符。'),
   rubyStyle: Schema.union([
     Schema.const('tex').description('TeX'),
@@ -57,7 +58,8 @@ export const inject = ['database']
 declare module 'koishi' {
   interface Tables {
     hantings: {
-      id: string
+      id: number
+      variant: number
       level: number
       word: string
       competition: string
@@ -80,15 +82,16 @@ const unicodeMap = {
 
 export async function apply(ctx: Context, config: Config) {
   ctx.model.extend('hantings', {
-    id: 'string',
+    id: 'unsigned',
+    variant: 'unsigned',
     level: 'unsigned',
-    word: 'char',
+    word: 'string',
     competition: 'char',
     flag: 'unsigned',
-    pinyin: 'char',
+    pinyin: 'string',
     definition: 'string',
     example: 'string',
-  }, { primary: 'id' })
+  }, { primary: ['id', 'variant'] })
 
   ctx.command('hanting [id:string]', '从汉听词库中出题。')
     .alias('汉听', '👂来一道汉听')
@@ -106,7 +109,7 @@ export async function apply(ctx: Context, config: Config) {
       options ??= {}
 
       const [hanting] = await ctx.database.select('hantings', {
-        ...id ? { id } : {},
+        ...id ? { ...parseVarianted(id as VariantId) } : {},
         ...options.flag ? { flag: options.flag } : {},
         ...options.level ? { level: options.level } : {},
         ...options.competition ? { competition: options.competition } : {},
@@ -122,12 +125,14 @@ export async function apply(ctx: Context, config: Config) {
           hanting.pinyin = hanting.pinyin.replaceAll(key, value)
       }
 
+      const idWithVariant = buildVarianted(hanting.id, hanting.variant)
       const level = ['⭐', '🍄', '🥚'][hanting.flag].repeat(4 - hanting.level)
 
       return h('qq:markdown', [
-        `${config.competitions[hanting.competition]}#${hanting.id}${level}`,
-        options?.answer ? session.platform === 'qq' ? buildRuby(hanting, options.ruby ?? config.rubyStyle)
-          : h('template', h('b', hanting.word), ` ${hanting.pinyin.replaceAll('-', ' ')}`)
+        `${config.competitions[hanting.competition]}#${idWithVariant}${level}`,
+        options?.answer
+          ? session.platform === 'qq' ? buildRuby(hanting, options.ruby ?? config.rubyStyle)
+            : h('template', h('b', hanting.word), ` ${hanting.pinyin.replaceAll('-', ' ')}`)
           : hanting.pinyin.replaceAll('-', ''),
         hanting.definition,
         hanting.example,
@@ -148,15 +153,52 @@ export async function apply(ctx: Context, config: Config) {
     parser.on('readable', () => {
       let record = parser.read()
       while (record !== null) {
-        buffer.push(record)
+        buffer.push({
+          variant: 0,
+          ...record,
+          ...parseVarianted(record.id),
+        })
         record = parser.read()
       }
     })
-    parser.write(await ctx.http.get(config.url))
+    parser.write(await ctx.http.get(config.dataUrl))
     parser.end(() => {
       ctx.database.upsert('hantings', buffer)
       logger.info(`汉听词库下载完成，共 ${buffer.length} 条记录。`)
     })
+  }
+}
+
+type VariantId = `${number}${string}`
+
+function toBase26(n: number): string {
+  let result = ''
+  do {
+    const remainder = n % 26
+    result = String.fromCharCode('a'.charCodeAt(0) + remainder) + result
+    n = Math.floor(n / 26) - 1
+  } while (n >= 0)
+  return result
+}
+
+function fromBase26(s: string): number {
+  let result = 0
+  for (let i = 0; i < s.length; i++) {
+    result = result * 26 + (s.charCodeAt(i) - 'a'.charCodeAt(0)) + 1
+  }
+  return result - 1
+}
+
+function buildVarianted(id: number, variant: number): VariantId {
+  assert(variant < 26)
+  return `${id}${toBase26(variant)}`
+}
+
+function parseVarianted(value: VariantId): { id: number, variant?: number } {
+  const match = value.match(/^(\d+)([a-z]+)?$/)!
+  return {
+    id: Number.parseInt(match[1], 10),
+    ...match[2] ? { variant: fromBase26(match[2]) } : {},
   }
 }
 
