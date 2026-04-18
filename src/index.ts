@@ -1,5 +1,4 @@
 import type { Context, Tables } from 'koishi'
-import { promisify } from 'node:util'
 import { } from '@koishijs/plugin-help'
 import { $, h, Logger, Schema } from 'koishi'
 import { shortcut } from 'koishi-plugin-montmorill'
@@ -98,7 +97,7 @@ export async function apply(ctx: Context, config: Config) {
     .alias('🥚', { options: { flag: 2 } })
     .option('level', '-l <level:number> 指定单词等级。')
     .option('competition', '-c <competition:string> 指定单词竞赛。')
-    .option('ruby', '-r <ruby:string> 指定拼音格式。', { type: ['tex', 'html', 'markdown'] })
+    .option('ruby', '-r <ruby:string> 指定拼音格式。', { hidden: true, type: ['tex', 'html', 'markdown'] })
     .option('unicode', '-u 显示 Unicode 字符。')
     .option('answer', '-a 显示答案。')
     .action(async ({ options, session }, id?: string) => {
