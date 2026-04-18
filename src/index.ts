@@ -15,7 +15,7 @@ export interface Config {
 }
 
 export const Config: Schema<Config> = Schema.object({
-  dataUrl: Schema.string().description('汉听词库 URL。').default('https://raw.githubusercontent.com/HanTingQuan/HTDictionary/refs/heads/main/hantings.csv'),
+  dataUrl: Schema.string().description('汉听词库 URL。').default('https://raw.githubusercontent.com/HanTingQuan/HTDictionary/refs/heads/main/hanting.csv'),
   unicode: Schema.boolean().default(true).description('显示 Unicode 字符。'),
   rubyStyle: Schema.union([
     Schema.const('tex').description('TeX'),
@@ -56,7 +56,7 @@ export const inject = ['database']
 
 declare module 'koishi' {
   interface Tables {
-    hantings: {
+    hanting: {
       id: number
       variant: number
       level: number
@@ -80,7 +80,7 @@ const unicodeMap = {
 }
 
 export async function apply(ctx: Context, config: Config) {
-  ctx.model.extend('hantings', {
+  ctx.model.extend('hanting', {
     id: 'unsigned',
     variant: 'unsigned',
     level: 'unsigned',
@@ -108,7 +108,7 @@ export async function apply(ctx: Context, config: Config) {
         return
       options ??= {}
 
-      const [hanting] = await ctx.database.select('hantings', {
+      const [hanting] = await ctx.database.select('hanting', {
         ...id ? parseVariantId(id as VariantId) : {},
         ...options.flag ? { flag: options.flag } : {},
         ...options.level ? { level: options.level } : {},
@@ -130,7 +130,7 @@ export async function apply(ctx: Context, config: Config) {
       const level = ['⭐', '🍄', '🥚'][hanting.flag].repeat(4 - hanting.level)
 
       if (hanting.variant === 0) {
-        const variant = await ctx.database.get('hantings', { id: hanting.id })
+        const variant = await ctx.database.get('hanting', { id: hanting.id })
         if (variant.length === 1) {
           variantId = hanting.id as any
         }
@@ -154,10 +154,10 @@ export async function apply(ctx: Context, config: Config) {
     })
 
   const stats = await ctx.database.stats()
-  if (!stats.tables.hantings?.count) {
+  if (!stats.tables.hanting?.count) {
     logger.info('汉听词库为空，尝试下载...')
     const parser = (await import('csv-parse')).parse({ columns: true })
-    const buffer: Tables['hantings'][] = []
+    const buffer: Tables['hanting'][] = []
     parser.on('readable', () => {
       let record = parser.read()
       while (record !== null) {
@@ -171,7 +171,7 @@ export async function apply(ctx: Context, config: Config) {
     })
     parser.write(await ctx.http.get(config.dataUrl))
     parser.end(() => {
-      ctx.database.upsert('hantings', buffer)
+      ctx.database.upsert('hanting', buffer)
       logger.info(`汉听词库下载完成，共 ${buffer.length} 条记录。`)
     })
   }
@@ -209,7 +209,7 @@ function parseVariantId(value: VariantId): { id: number, variant?: number } {
   }
 }
 
-function buildRuby({ word, pinyin }: Tables['hantings'], style: Config['rubyStyle']): string {
+function buildRuby({ word, pinyin }: Tables['hanting'], style: Config['rubyStyle']): string {
   const pairs = []
   let index = 0
   for (const part of pinyin.split(' ')) {
@@ -230,7 +230,7 @@ function buildRuby({ word, pinyin }: Tables['hantings'], style: Config['rubyStyl
 
 const pinyinSeparator = /[- ]/
 
-function maskAnswer(hanting: Tables['hantings']): void {
+function maskAnswer(hanting: Tables['hanting']): void {
   const replaceMap = new Map()
   const words = hanting.word.split('/')
   let index = 0
