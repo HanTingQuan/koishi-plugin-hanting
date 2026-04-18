@@ -4,62 +4,31 @@ import { } from '@koishijs/plugin-help'
 import { $, h, Logger, Schema } from 'koishi'
 import { shortcut } from 'koishi-plugin-montmorill'
 
+import competitions from './competitions.json'
 import { buildVariantId, parseVariantId } from './id'
 import { maskAnswer } from './mask'
-import { makeRubyPairs, rubyBuilders } from './ruby'
-
-const rubyStyles = Object.keys(rubyBuilders) as (keyof typeof rubyBuilders)[]
+import { makeRubyPairs, rubyBuilders, rubyStyles } from './ruby'
 
 export const name = 'hanting'
 const logger = new Logger(name)
 
 export interface Config {
   dataUrl: string
-  replaceMap: Record<string, string>
   rubyStyle: keyof typeof rubyBuilders
+  replaceMap: Record<string, string>
   competitions: Record<string, string>
 }
 
-export const Config: Schema<Config> = Schema.object({
-  dataUrl: Schema.string().description('汉听词库 URL。').default('https://raw.githubusercontent.com/HanTingQuan/HTDictionary/refs/heads/main/hanting.csv'),
-  replaceMap: Schema.dict(Schema.string()).default({
-    a: 'ɑ',
-    ā: 'ɑ̄',
-    á: 'ɑ́',
-    ǎ: 'ɑ̌',
-    à: 'ɑ̀',
-    g: 'ɡ',
-  }).description('替换拼音中的字符。'),
-  rubyStyle: Schema.union(rubyStyles).default('plain').description('拼音格式。'),
-  competitions: Schema.dict(Schema.string()).default({
-    A: '百知杯',
-    B: '博物杯',
-    C: '采薇/撷芷杯',
-    D: '电阻杯/天玑',
-    E: '萌新杯',
-    F: '翻翻乐/风引杯',
-    G: '捷德杯/时之王者',
-    H: '官方节目',
-    I: '甘棠杯',
-    J: '经史/适等',
-    K: '扩展杯',
-    L: '丽句/元晓/江左玉',
-    M: '萌进杯',
-    N: '脑洞大会',
-    O: '肴馔盏',
-    P: '拼释会',
-    Q: '启莱杯/千秋梦',
-    R: '小雅杯/合纵连横',
-    S: '随蓝/风叶杯',
-    T: '涛源杯/源点杯',
-    U: '山水/鞑靼/明史/奊诟',
-    V: '五行法会',
-    W: '物生行',
-    X: '夏季联赛',
-    Y: '螈汁杯',
-    Z: '祯休会',
-  }).description('比赛来源文本。'),
-})
+export const Config: Schema<Config> = Schema.intersect([
+  Schema.object({
+    dataUrl: Schema.string().description('汉听词库 URL。').default('https://raw.githubusercontent.com/HanTingQuan/HTDictionary/refs/heads/main/hanting.csv'),
+    rubyStyle: Schema.union(rubyStyles).description('拼音格式。').default('plain'),
+  }),
+  Schema.object({
+    replaceMap: Schema.dict(Schema.string()).description('替换拼音中的字符。').collapse().default({ a: 'ɑ', ā: 'ɑ̄', á: 'ɑ́', ǎ: 'ɑ̌', à: 'ɑ̀', g: 'ɡ' }),
+    competitions: Schema.dict(Schema.string()).description('比赛来源文本。').collapse().default(competitions),
+  }).description('高级配置'),
+])
 
 export const inject = ['database']
 
@@ -135,7 +104,7 @@ export async function apply(ctx: Context, config: Config) {
       return h('qq:markdown', [
         `${config.competitions[hanting.competition]}#${variantId}${level}`,
         options?.answer
-          ? rubyBuilders[config.rubyStyle](makeRubyPairs(hanting))
+          ? rubyBuilders[options?.ruby ?? config.rubyStyle](makeRubyPairs(hanting))
           : hanting.pinyin.replaceAll('-', ''),
         hanting.definition,
         hanting.example,
