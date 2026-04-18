@@ -1,5 +1,4 @@
 import type { Context, Tables } from 'koishi'
-import { assert } from 'node:console'
 import { } from '@koishijs/plugin-help'
 import { $, h, Logger, Schema } from 'koishi'
 import { shortcut } from 'koishi-plugin-montmorill'
@@ -109,7 +108,7 @@ export async function apply(ctx: Context, config: Config) {
       options ??= {}
 
       const [hanting] = await ctx.database.select('hantings', {
-        ...id ? { ...parseVarianted(id as VariantId) } : {},
+        ...id ? { ...parseVariantId(id as VariantId) } : {},
         ...options.flag ? { flag: options.flag } : {},
         ...options.level ? { level: options.level } : {},
         ...options.competition ? { competition: options.competition } : {},
@@ -125,11 +124,18 @@ export async function apply(ctx: Context, config: Config) {
           hanting.pinyin = hanting.pinyin.replaceAll(key, value)
       }
 
-      const idWithVariant = buildVarianted(hanting.id, hanting.variant)
+      let variantId = buildVariantId(hanting.id, hanting.variant)
       const level = ['⭐', '🍄', '🥚'][hanting.flag].repeat(4 - hanting.level)
 
+      if (hanting.variant === 0) {
+        const variant = await ctx.database.get('hantings', { id: hanting.id })
+        if (variant.length === 1) {
+          variantId = hanting.id as any
+        }
+      }
+
       return h('qq:markdown', [
-        `${config.competitions[hanting.competition]}#${idWithVariant}${level}`,
+        `${config.competitions[hanting.competition]}#${variantId}${level}`,
         options?.answer
           ? session.platform === 'qq' ? buildRuby(hanting, options.ruby ?? config.rubyStyle)
             : h('template', h('b', hanting.word), ` ${hanting.pinyin.replaceAll('-', ' ')}`)
@@ -138,8 +144,8 @@ export async function apply(ctx: Context, config: Config) {
         hanting.example,
         ...session.platform === 'qq' ? [
           !options?.answer
-            ? `> 查看答案 👉 ${shortcut(session.isDirect, `/hanting ${hanting.id} -a`)}`
-            : `> 查看原题 👉 ${shortcut(session.isDirect, `/hanting ${hanting.id}`)}`,
+            ? `> 查看答案 👉 ${shortcut(session.isDirect, `/hanting ${variantId} -a`)}`
+            : `> 查看原题 👉 ${shortcut(session.isDirect, `/hanting ${variantId}`)}`,
           `> 再来一题 👉 ${shortcut(session.isDirect, `/hanting`)}`,
         ] : [],
       ].map(frag => typeof frag === 'string' && !frag.endsWith('$$') ? `${frag}\n` : frag))
@@ -156,7 +162,7 @@ export async function apply(ctx: Context, config: Config) {
         buffer.push({
           variant: 0,
           ...record,
-          ...parseVarianted(record.id),
+          ...parseVariantId(record.id),
         })
         record = parser.read()
       }
@@ -189,12 +195,11 @@ function fromBase26(s: string): number {
   return result - 1
 }
 
-function buildVarianted(id: number, variant: number): VariantId {
-  assert(variant < 26)
+function buildVariantId(id: number, variant: number): VariantId {
   return `${id}${toBase26(variant)}`
 }
 
-function parseVarianted(value: VariantId): { id: number, variant?: number } {
+function parseVariantId(value: VariantId): { id: number, variant?: number } {
   const match = value.match(/^(\d+)([a-z]+)?$/)!
   return {
     id: Number.parseInt(match[1], 10),
