@@ -104,14 +104,13 @@ export async function apply(ctx: Context, config: Config) {
     .action(async ({ options, session }, id?: string) => {
       if (!session)
         return
-      options ??= {}
 
       const [hanting] = await ctx.database.select('hanting', {
         ...id ? parseVariantId(id as VariantId) : {},
-        ...options.flag ? { flag: options.flag } : {},
-        ...options.level ? { level: options.level } : {},
-        ...options.competition ? { competition: options.competition } : {},
-        ...options.variant ? { variant: options.variant } : {},
+        ...options?.flag ? { flag: options.flag } : {},
+        ...options?.level ? { level: options.level } : {},
+        ...options?.competition ? { competition: options.competition } : {},
+        ...options?.variant ? { variant: options.variant } : {},
       }).orderBy($.random).limit(1).execute()
       if (!hanting)
         return '未找到符合条件的单词！'
