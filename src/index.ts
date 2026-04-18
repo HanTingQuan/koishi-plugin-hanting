@@ -3,6 +3,7 @@ import type { VariantId } from './id'
 import { } from '@koishijs/plugin-help'
 import { $, h, Logger, Schema } from 'koishi'
 import { shortcut } from 'koishi-plugin-montmorill'
+
 import { buildVariantId, parseVariantId } from './id'
 import { maskAnswer } from './mask'
 import { makeRubyPairs, rubyBuilders } from './ruby'
