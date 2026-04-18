@@ -1,18 +1,22 @@
 import type { Context, Tables } from 'koishi'
+import { promisify } from 'node:util'
 import { } from '@koishijs/plugin-help'
-import { $, h, Schema } from 'koishi'
+import { $, h, Logger, Schema } from 'koishi'
 import { shortcut } from 'koishi-plugin-montmorill'
 import { pinyin } from 'pinyin-pro'
 
 export const name = 'hanting'
+const logger = new Logger(name)
 
 export interface Config {
+  url: string
   unicode: boolean
   rubyStyle: 'tex' | 'html' | 'markdown'
   competitions: Record<string, string>
 }
 
 export const Config: Schema<Config> = Schema.object({
+  url: Schema.string().description('汉听词库 URL。').default('https://raw.githubusercontent.com/HanTingQuan/HTDictionary/refs/heads/main/hantings.csv'),
   unicode: Schema.boolean().default(true).description('显示 Unicode 字符。'),
   rubyStyle: Schema.union([
     Schema.const('tex').description('TeX'),
@@ -85,7 +89,7 @@ export async function apply(ctx: Context, config: Config) {
     pinyin: 'char',
     definition: 'string',
     example: 'string',
-  })
+  }, { primary: 'id' })
 
   ctx.command('hanting [id:string]', '从汉听词库中出题。')
     .alias('汉听', '👂来一道汉听')
@@ -136,6 +140,25 @@ export async function apply(ctx: Context, config: Config) {
         ] : [],
       ].map(frag => typeof frag === 'string' && !frag.endsWith('$$') ? `${frag}\n` : frag))
     })
+
+  const stats = await ctx.database.stats()
+  if (!stats.tables.hantings?.count) {
+    logger.info('汉听词库为空，尝试下载...')
+    const parser = (await import('csv-parse')).parse({ columns: true })
+    const buffer: Tables['hantings'][] = []
+    parser.on('readable', () => {
+      let record = parser.read()
+      while (record !== null) {
+        buffer.push(record)
+        record = parser.read()
+      }
+    })
+    parser.write(await ctx.http.get(config.url))
+    parser.end(() => {
+      ctx.database.upsert('hantings', buffer)
+      logger.info(`汉听词库下载完成，共 ${buffer.length} 条记录。`)
+    })
+  }
 }
 
 function buildRuby({ word, pinyin }: Tables['hantings'], style: Config['rubyStyle']): string {
