@@ -72,7 +72,7 @@ declare module 'koishi' {
 
 const unicodeMap = {
   a: 'ɑ',
-  ɑ̄: 'ɑ̄',
+  ā: 'ɑ̄',
   á: 'ɑ́',
   ǎ: 'ɑ̌',
   à: 'ɑ̀',
@@ -99,6 +99,7 @@ export async function apply(ctx: Context, config: Config) {
     .alias('🥚', { options: { flag: 2 } })
     .option('level', '-l <level:number> 指定单词等级。')
     .option('competition', '-c <competition:string> 指定单词竞赛。')
+    .option('variant', '-v <variant:number> 指定单词变体。', { hidden: true })
     .option('ruby', '-r <ruby:string> 指定拼音格式。', { hidden: true, type: ['tex', 'html', 'markdown'] })
     .option('unicode', '-u 显示 Unicode 字符。')
     .option('answer', '-a 显示答案。')
@@ -108,10 +109,11 @@ export async function apply(ctx: Context, config: Config) {
       options ??= {}
 
       const [hanting] = await ctx.database.select('hantings', {
-        ...id ? { ...parseVariantId(id as VariantId) } : {},
+        ...id ? parseVariantId(id as VariantId) : {},
         ...options.flag ? { flag: options.flag } : {},
         ...options.level ? { level: options.level } : {},
         ...options.competition ? { competition: options.competition } : {},
+        ...options.variant ? { variant: options.variant } : {},
       }).orderBy($.random).limit(1).execute()
       if (!hanting)
         return '未找到符合条件的单词！'
