@@ -65,6 +65,7 @@ export async function apply(ctx: Context, config: Config) {
     .alias('汉听', '👂来一道汉听')
     .option('flag', '-f <flag:number> 指定单词类型。')
     .alias('总', { options: { flag: 1 } })
+    .alias('ziong', { options: { flag: 1 } })
     .alias('🥚', { options: { flag: 2 } })
     .option('level', '-l <level:number> 指定单词等级。')
     .option('competition', '-c <competition:string> 指定单词竞赛。')
