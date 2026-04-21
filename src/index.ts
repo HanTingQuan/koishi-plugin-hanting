@@ -88,8 +88,11 @@ export async function apply(ctx: Context, config: Config) {
       if (!options?.answer)
         maskAnswer(hanting)
 
-      for (const [key, value] of Object.entries(config.replaceMap))
+      for (const [key, value] of Object.entries(config.replaceMap)) {
         hanting.pinyin = hanting.pinyin.replaceAll(key, value)
+        hanting.definition = hanting.definition.replaceAll(key, value)
+        hanting.example = hanting.example.replaceAll(key, value)
+      }
 
       let variantId = buildVariantId(hanting.id, hanting.variant)
       const level = ['⭐', '🍄', '🥚'][hanting.flag].repeat(4 - hanting.level)
