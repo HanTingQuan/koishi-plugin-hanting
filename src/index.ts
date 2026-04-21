@@ -109,12 +109,24 @@ export async function apply(ctx: Context, config: Config) {
         hanting.definition,
         hanting.example,
         ...session.platform === 'qq' ? [
-          !options?.answer
-            ? `> 查看答案 👉 ${shortcut(session.isDirect, `/hanting ${variantId} -a`)}`
-            : `> 查看原题 👉 ${shortcut(session.isDirect, `/hanting ${variantId}`)}`,
+          `> 回答汉听 👉 ${shortcut(session.isDirect, `/hanting.answer ${variantId} `)}`,
+          !options?.answer && `> 查看答案 👉 ${shortcut(session.isDirect, `/hanting ${variantId} -a`)}`,
           `> 再来一题 👉 ${shortcut(session.isDirect, `/hanting`)}`,
-        ] : [],
+        ].filter(Boolean) : [],
       ].map(frag => typeof frag === 'string' && !frag.endsWith('$$') ? `${frag}\n` : frag))
+    })
+    .subcommand('.answer <id:string> <answer:string>', '回答')
+    .action(async ({ session }, id, answer) => {
+      if (!session)
+        return
+
+      const [hanting] = await ctx.database.get('hanting', parseVariantId(id as VariantId))
+      if (!hanting)
+        return '未找到符合条件的单词！'
+      const correctAnswer = hanting.word.split('/')
+      if (!correctAnswer.includes(answer))
+        return '❌️回答错误！'
+      return '✅️回答正确！'
     })
 
   const stats = await ctx.database.stats()
