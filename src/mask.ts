@@ -15,11 +15,10 @@ export function maskAnswer(hanting: Tables['hanting']): void {
 
   const pinyinSet = new Set(hanting.pinyin.toLowerCase().split(pinyinSeparator))
   const maskText = (sentence: string) => {
-    return pinyin(sentence, { toneType: 'symbol', type: 'all' })
+    const arr = pinyin(sentence, { toneType: 'symbol', type: 'all' })
       .map(item => hanting.word.includes(item.origin)
-        || pinyinSet.has(item.pinyin) ? `${item.pinyin} ` : item.origin)
-      .join('')
-      .replaceAll(' ', '')
+        || pinyinSet.has(item.pinyin) ? ` ${item.pinyin} ` : item.origin)
+    return arr.join('').replaceAll(/\s*(\p{P})\s*/gu, '$1').replaceAll(/\s+/g, ' ')
   }
 
   hanting.definition = maskText(hanting.definition)
