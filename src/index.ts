@@ -113,7 +113,7 @@ export async function apply(ctx: Context, config: Config) {
         hanting.definition,
         hanting.example,
         ...session.platform === 'qq' ? [
-          `> 回答汉听 👉 ${shortcut(session.isDirect, `/hanting.answer ${variantId} `)}`,
+          `> 回答汉听 👉 ${shortcut.input(`/hanting.answer ${variantId} `)}`,
           !options?.answer && `> 查看答案 👉 ${shortcut(session.isDirect, `/hanting ${variantId} -a`)}`,
           `> 再来一题 👉 ${shortcut(session.isDirect, `/hanting`)}`,
         ].filter(Boolean) : [],
