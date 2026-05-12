@@ -115,7 +115,6 @@ export async function apply(ctx: Context, config: Config) {
         ...session.platform === 'qq' ? [
           `> 回答汉听 👉 ${shortcut.input(`/hanting.answer ${variantId} `)}`,
           !options?.answer && `> 查看答案 👉 ${shortcut(session.isDirect, `/hanting ${variantId} -a`)}`,
-          `> 再来一题 👉 ${shortcut(session.isDirect, `/hanting`)}`,
         ].filter(Boolean) : [],
       ].map(frag => typeof frag === 'string' && !frag.endsWith('$$') ? `${frag}\n` : frag))
     })
@@ -130,6 +129,7 @@ export async function apply(ctx: Context, config: Config) {
       const correctAnswer = hanting.word.split('/')
       if (!correctAnswer.includes(answer))
         return '❌️回答错误！'
+      session.execute('hanting')
       return '✅️回答正确！'
     })
 
